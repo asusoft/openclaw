@@ -5,6 +5,7 @@ import {
   resolveToolsBySender,
 } from "../../config/group-policy.js";
 import type { DiscordConfig } from "../../config/types.js";
+import type { ActivationMode, ObserveOptions } from "../../config/types.js";
 import type {
   GroupToolPolicyBySenderConfig,
   GroupToolPolicyConfig,
@@ -66,6 +67,53 @@ function resolveTelegramRequireMention(params: {
     return groupDefault.requireMention;
   }
   return undefined;
+}
+
+function resolveTelegramActivationMode(params: {
+  cfg: OpenClawConfig;
+  chatId?: string;
+  topicId?: string;
+}): ActivationMode | undefined {
+  const { cfg, chatId, topicId } = params;
+  if (!chatId) {
+    return undefined;
+  }
+  const groupConfig = cfg.channels?.telegram?.groups?.[chatId];
+  const groupDefault = cfg.channels?.telegram?.groups?.["*"];
+  const topicConfig = topicId && groupConfig?.topics ? groupConfig.topics[topicId] : undefined;
+  const defaultTopicConfig =
+    topicId && groupDefault?.topics ? groupDefault.topics[topicId] : undefined;
+  // Priority: specific topic > wildcard topic > specific group > wildcard group
+  return (
+    topicConfig?.activationMode ??
+    defaultTopicConfig?.activationMode ??
+    groupConfig?.activationMode ??
+    groupDefault?.activationMode
+  );
+}
+
+function resolveTelegramObserveOptionsForChat(params: {
+  cfg: OpenClawConfig;
+  chatId?: string;
+  topicId?: string;
+}): ObserveOptions {
+  const { cfg, chatId, topicId } = params;
+  if (!chatId) {
+    return {};
+  }
+  const groupConfig = cfg.channels?.telegram?.groups?.[chatId];
+  const groupDefault = cfg.channels?.telegram?.groups?.["*"];
+  const topicConfig = topicId && groupConfig?.topics ? groupConfig.topics[topicId] : undefined;
+  const defaultTopicConfig =
+    topicId && groupDefault?.topics ? groupDefault.topics[topicId] : undefined;
+  // Return most specific observeOptions (topic > wildcard topic > group > wildcard group)
+  return (
+    topicConfig?.observeOptions ??
+    defaultTopicConfig?.observeOptions ??
+    groupConfig?.observeOptions ??
+    groupDefault?.observeOptions ??
+    {}
+  );
 }
 
 function resolveDiscordGuildEntry(guilds: DiscordConfig["guilds"], groupSpace?: string | null) {
@@ -237,6 +285,16 @@ export function resolveTelegramGroupRequireMention(
     groupId: chatId ?? params.groupId,
     accountId: params.accountId,
   });
+}
+
+export function resolveTelegramGroupActivationMode(params: GroupMentionParams): ActivationMode {
+  const { chatId, topicId } = parseTelegramGroupId(params.groupId);
+  return resolveTelegramActivationMode({ cfg: params.cfg, chatId, topicId }) ?? "default";
+}
+
+export function resolveTelegramGroupObserveOptions(params: GroupMentionParams): ObserveOptions {
+  const { chatId, topicId } = parseTelegramGroupId(params.groupId);
+  return resolveTelegramObserveOptionsForChat({ cfg: params.cfg, chatId, topicId });
 }
 
 export function resolveWhatsAppGroupRequireMention(params: GroupMentionParams): boolean {

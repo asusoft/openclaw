@@ -22,6 +22,10 @@ import { resolveControlCommandGate } from "../channels/command-gating.js";
 import { formatLocationText, toLocationContext } from "../channels/location.js";
 import { logInboundDrop } from "../channels/logging.js";
 import { resolveMentionGatingWithBypass } from "../channels/mention-gating.js";
+import {
+  resolveTelegramGroupActivationMode,
+  resolveTelegramGroupObserveOptions,
+} from "../channels/plugins/group-mentions.js";
 import { recordInboundSession } from "../channels/session.js";
 import {
   createStatusReactionController,
@@ -62,6 +66,7 @@ import type { StickerMetadata, TelegramContext } from "./bot/types.js";
 import { enforceTelegramDmAccess } from "./dm-access.js";
 import { evaluateTelegramGroupBaseAccess } from "./group-access.js";
 import { resolveTelegramGroupPromptSettings } from "./group-config-helpers.js";
+import { DEFAULT_OBSERVE_RESPOND_ON, shouldRespondInObserveMode } from "./observe.js";
 import {
   buildTelegramStatusReactionVariants,
   resolveTelegramAllowedEmojiReactions,
@@ -429,7 +434,49 @@ export const buildTelegramMessageContext = async ({
     commandAuthorized,
   });
   const effectiveWasMentioned = mentionGate.effectiveWasMentioned;
-  if (isGroup && requireMention && canDetectMention) {
+  const activationMode = isGroup
+    ? resolveTelegramGroupActivationMode({
+        cfg,
+        groupId: String(chatId),
+        accountId: account.accountId,
+      })
+    : "default";
+
+  if (isGroup && activationMode === "observe") {
+    // Observe mode: decide whether to respond; if not, ingest to history and skip.
+    const observeOptions = resolveTelegramGroupObserveOptions({
+      cfg,
+      groupId: String(chatId),
+      accountId: account.accountId,
+    });
+    const respondOn = observeOptions.respondOn ?? DEFAULT_OBSERVE_RESPOND_ON;
+    const shouldRespond = shouldRespondInObserveMode({
+      wasMentioned,
+      implicitMention,
+      hasControlCommand: hasControlCommandInMessage,
+      rawBody,
+      respondOn,
+      keywords: observeOptions.keywords ?? [],
+    });
+    if (!shouldRespond) {
+      logger.info({ chatId, reason: "observe-no-trigger" }, "observe mode: ingested, no response");
+      recordPendingHistoryEntryIfEnabled({
+        historyMap: groupHistories,
+        historyKey: historyKey ?? "",
+        limit: historyLimit,
+        entry: historyKey
+          ? {
+              sender: buildSenderLabel(msg, senderId || chatId),
+              body: rawBody,
+              timestamp: msg.date ? msg.date * 1000 : undefined,
+              messageId: typeof msg.message_id === "number" ? String(msg.message_id) : undefined,
+            }
+          : null,
+      });
+      return null;
+    }
+    // shouldRespond = true: fall through to normal processing with full history context
+  } else if (isGroup && requireMention && canDetectMention) {
     if (mentionGate.shouldSkip) {
       logger.info({ chatId, reason: "no-mention" }, "skipping group message");
       recordPendingHistoryEntryIfEnabled({

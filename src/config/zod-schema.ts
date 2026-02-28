@@ -778,6 +778,70 @@ export const OpenClawSchema = z
       })
       .strict()
       .optional(),
+    // Chat alias map (fork extension): alias name → numeric chat ID.
+    // Agents can use aliases instead of raw IDs in send_to_chat and route patterns.
+    chatAliases: z.record(z.string(), z.string()).optional(),
+    // Config-driven message forwarding rules (fork extension).
+    // Each rule auto-forwards matching messages to another chat without LLM involvement.
+    messageRoutes: z
+      .array(
+        z
+          .object({
+            /** Source pattern: "telegram:*", "telegram:-100123", or "*". */
+            from: z.string(),
+            /** Target chat ID or alias to forward to. */
+            to: z.string(),
+            /** Channel provider for both from and to. Default: "telegram". */
+            channel: z.string().optional(),
+            /** Optional message filters — all specified filters must pass. */
+            filter: z
+              .object({
+                /** At least one keyword must appear in the message text (case-insensitive). */
+                keywords: z.array(z.string()).optional(),
+                /** Only forward messages from these sender user IDs. */
+                senders: z.array(z.string()).optional(),
+              })
+              .strict()
+              .optional(),
+            /** Optional text transform applied before forwarding. */
+            transform: z
+              .object({
+                /** Prefix template prepended to the message. Supports {chatTitle}, {chatId}, {sender}, {username}. */
+                prefix: z.string().optional(),
+                /** Suffix template appended to the message. */
+                suffix: z.string().optional(),
+              })
+              .strict()
+              .optional(),
+            /** Set to false to temporarily disable without removing the rule. Default: true. */
+            enabled: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+    // Cross-context messaging whitelist (fork extension — not in upstream OpenClaw).
+    // When absent, all existing cross-context policy checks behave identically to upstream.
+    crossContextRoutes: z
+      .object({
+        allow: z
+          .array(
+            z
+              .object({
+                /** Source pattern: "telegram", "telegram:*", "telegram:<chatId>", "discord", etc. */
+                from: z.string(),
+                /** Target pattern: "telegram", "telegram:*", "telegram:<chatId>", "discord", etc. */
+                to: z.string(),
+                /** Optional explicit target chat ID allowlist (intra-channel routes). */
+                chatIds: z.array(z.string()).optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+        /** Default action when no allow rule matches. Default: "deny". */
+        default: z.enum(["deny", "allow"]).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((cfg, ctx) => {

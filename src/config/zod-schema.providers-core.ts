@@ -54,9 +54,24 @@ const TelegramCapabilitiesSchema = z.union([
     .strict(),
 ]);
 
+const ActivationModeSchema = z.enum(["default", "observe"]);
+
+const ObserveRespondOnSchema = z.enum(["mention", "reply", "command", "keyword", "question"]);
+
+const ObserveOptionsSchema = z
+  .object({
+    ingestToHistory: z.boolean().optional(),
+    respondOn: z.array(ObserveRespondOnSchema).optional(),
+    keywords: z.array(z.string()).optional(),
+    silentIngestion: z.boolean().optional(),
+  })
+  .strict();
+
 export const TelegramTopicSchema = z
   .object({
     requireMention: z.boolean().optional(),
+    activationMode: ActivationModeSchema.optional(),
+    observeOptions: ObserveOptionsSchema.optional(),
     groupPolicy: GroupPolicySchema.optional(),
     skills: z.array(z.string()).optional(),
     enabled: z.boolean().optional(),
@@ -68,6 +83,8 @@ export const TelegramTopicSchema = z
 export const TelegramGroupSchema = z
   .object({
     requireMention: z.boolean().optional(),
+    activationMode: ActivationModeSchema.optional(),
+    observeOptions: ObserveOptionsSchema.optional(),
     groupPolicy: GroupPolicySchema.optional(),
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,

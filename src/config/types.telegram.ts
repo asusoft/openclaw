@@ -171,8 +171,30 @@ export type TelegramAccountConfig = {
   ackReaction?: string;
 };
 
+/** Activation mode for group/topic message handling. */
+export type ActivationMode = "default" | "observe";
+
+/** Which conditions trigger a response in observe mode. */
+export type ObserveRespondOn = "mention" | "reply" | "command" | "keyword" | "question";
+
+/** Options for observe mode activation. */
+export type ObserveOptions = {
+  /** Append all messages to group history (default: true). */
+  ingestToHistory?: boolean;
+  /** Which conditions trigger a response (default: ["mention", "reply", "command"]). */
+  respondOn?: ObserveRespondOn[];
+  /** Keyword triggers — respond when any of these appear in the message body. */
+  keywords?: string[];
+  /** Suppress typing indicator for observe-only messages (default: true). */
+  silentIngestion?: boolean;
+};
+
 export type TelegramTopicConfig = {
   requireMention?: boolean;
+  /** Activation mode: "default" = existing behaviour, "observe" = see all, respond selectively. */
+  activationMode?: ActivationMode;
+  /** Options for observe mode (only relevant when activationMode = "observe"). */
+  observeOptions?: ObserveOptions;
   /** Per-topic override for group message policy (open|disabled|allowlist). */
   groupPolicy?: GroupPolicy;
   /** If specified, only load these skills for this topic. Omit = all skills; empty = no skills. */
@@ -187,6 +209,10 @@ export type TelegramTopicConfig = {
 
 export type TelegramGroupConfig = {
   requireMention?: boolean;
+  /** Activation mode: "default" = existing behaviour, "observe" = see all, respond selectively. */
+  activationMode?: ActivationMode;
+  /** Options for observe mode (only relevant when activationMode = "observe"). */
+  observeOptions?: ObserveOptions;
   /** Per-group override for group message policy (open|disabled|allowlist). */
   groupPolicy?: GroupPolicy;
   /** Optional tool policy overrides for this group. */

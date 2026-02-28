@@ -23,6 +23,7 @@ import { danger, logVerbose, warn } from "../globals.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { MediaFetchError } from "../media/fetch.js";
 import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
+import { runMessageRoutes } from "../routing/message-routes.js";
 import { resolveAgentRoute } from "../routing/resolve-route.js";
 import { resolveThreadSessionKeys } from "../routing/session-key.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
@@ -46,6 +47,7 @@ import {
   resolveTelegramGroupAllowFromContext,
 } from "./bot/helpers.js";
 import type { TelegramContext } from "./bot/types.js";
+import { updateChatRegistryForAllWorkspaces } from "./chat-registry.js";
 import { enforceTelegramDmAccess } from "./dm-access.js";
 import {
   evaluateTelegramGroupBaseAccess,
@@ -61,6 +63,7 @@ import {
   parseModelCallbackData,
   type ProviderInfo,
 } from "./model-buttons.js";
+import { updatePeopleRegistryForAllWorkspaces } from "./people-registry.js";
 import { buildInlineKeyboard } from "./send.js";
 import { wasSentByBot } from "./sent-message-cache.js";
 
@@ -1397,6 +1400,55 @@ export const registerTelegramHandlers = ({
     const msg = ctx.message;
     if (!msg) {
       return;
+    }
+    // Cross-context registry: record chat identity so agents can resolve
+    // natural-language names to IDs. Fire-and-forget; never blocks the handler.
+    if ((cfg as { crossContextRoutes?: unknown }).crossContextRoutes) {
+      const chatId = String(msg.chat.id);
+      const chatTitle = msg.chat.title ?? msg.chat.first_name ?? msg.chat.username ?? chatId;
+      const chatType =
+        msg.chat.type === "private"
+          ? ("dm" as const)
+          : (msg.chat.type as "group" | "supergroup" | "channel");
+      // Write to all agent workspaces so multi-agent setups share the registry.
+      updateChatRegistryForAllWorkspaces(cfg, {
+        chatId,
+        title: chatTitle,
+        type: chatType,
+      }).catch(() => void 0);
+    }
+    // People registry: record sender profile so agents always know who they're
+    // talking to. Fire-and-forget; runs unconditionally on every message.
+    if (msg.from?.id != null) {
+      const chatId = String(msg.chat.id);
+      const chatTitle = msg.chat.title ?? msg.chat.first_name ?? msg.chat.username ?? chatId;
+      const chatType =
+        msg.chat.type === "private"
+          ? ("dm" as const)
+          : (msg.chat.type as "group" | "supergroup" | "channel");
+      updatePeopleRegistryForAllWorkspaces(cfg, {
+        userId: String(msg.from.id),
+        username: msg.from.username,
+        firstName: msg.from.first_name,
+        lastName: msg.from.last_name,
+        seenInChatTitle: chatTitle,
+        seenInChatType: chatType,
+      }).catch(() => void 0);
+    }
+    // Message router: fire-and-forget config-driven forwarding. No LLM involved.
+    if ((cfg as { messageRoutes?: unknown }).messageRoutes) {
+      const chatId = String(msg.chat.id);
+      const chatTitle = msg.chat.title ?? msg.chat.first_name ?? msg.chat.username ?? chatId;
+      runMessageRoutes(cfg, {
+        text: msg.text ?? msg.caption,
+        chatId,
+        chatTitle,
+        senderId: msg.from?.id != null ? String(msg.from.id) : "",
+        senderFirstName: msg.from?.first_name,
+        senderLastName: msg.from?.last_name,
+        senderUsername: msg.from?.username,
+        channel: "telegram",
+      }).catch(() => void 0);
     }
     await handleInboundMessageLike({
       ctxForDedupe: ctx,

@@ -5,14 +5,18 @@ import { resolveSessionAgentId } from "./agent-scope.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
 import type { ToolFsPolicy } from "./tool-fs-policy.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
+import { createBroadcastToChatsTool } from "./tools/broadcast-to-chats-tool.js";
 import { createBrowserTool } from "./tools/browser-tool.js";
 import { createCanvasTool } from "./tools/canvas-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createCronTool } from "./tools/cron-tool.js";
+import { createDigestChatTool } from "./tools/digest-chat-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
+import { createReadChatHistoryTool } from "./tools/read-chat-history-tool.js";
+import { createSendToChatTool } from "./tools/send-to-chat-tool.js";
 import { createSessionStatusTool } from "./tools/session-status-tool.js";
 import { createSessionsHistoryTool } from "./tools/sessions-history-tool.js";
 import { createSessionsListTool } from "./tools/sessions-list-tool.js";
@@ -20,6 +24,8 @@ import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
+import { createUpdateMemoryTool } from "./tools/update-memory-tool.js";
+import { createUpdatePersonTool } from "./tools/update-person-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
 
@@ -108,7 +114,45 @@ export function createOpenClawTools(options?: {
         requireExplicitTarget: options?.requireExplicitMessageTarget,
         requesterSenderId: options?.requesterSenderId ?? undefined,
       });
+  // Only expose cross-context tools when crossContextRoutes is configured;
+  // avoids cluttering the agent tool list in standard (non-fork) deployments.
+  const hasCrossContextRoutes = Boolean(
+    (options?.config as { crossContextRoutes?: unknown })?.crossContextRoutes,
+  );
+  const sendToChatTool = hasCrossContextRoutes
+    ? createSendToChatTool({
+        agentSessionKey: options?.agentSessionKey,
+        config: options?.config,
+        currentChannelId: options?.currentChannelId,
+        currentChannelProvider: options?.agentChannel,
+      })
+    : null;
+  const readChatHistoryTool = hasCrossContextRoutes
+    ? createReadChatHistoryTool({
+        config: options?.config,
+        currentChannelId: options?.currentChannelId,
+        currentChannelProvider: options?.agentChannel,
+      })
+    : null;
+  const broadcastToChatsTool = hasCrossContextRoutes
+    ? createBroadcastToChatsTool({
+        agentSessionKey: options?.agentSessionKey,
+        config: options?.config,
+        currentChannelId: options?.currentChannelId,
+        currentChannelProvider: options?.agentChannel,
+      })
+    : null;
+  const digestChatTool = hasCrossContextRoutes
+    ? createDigestChatTool({
+        agentSessionKey: options?.agentSessionKey,
+        config: options?.config,
+        currentChannelId: options?.currentChannelId,
+        currentChannelProvider: options?.agentChannel,
+      })
+    : null;
   const tools: AnyAgentTool[] = [
+    createUpdateMemoryTool({ workspaceDir: options?.workspaceDir }),
+    createUpdatePersonTool({ workspaceDir: options?.workspaceDir }),
     createBrowserTool({
       sandboxBridgeUrl: options?.sandboxBrowserBridgeUrl,
       allowHostControl: options?.allowHostBrowserControl,
@@ -126,6 +170,10 @@ export function createOpenClawTools(options?: {
       agentSessionKey: options?.agentSessionKey,
     }),
     ...(messageTool ? [messageTool] : []),
+    ...(sendToChatTool ? [sendToChatTool] : []),
+    ...(readChatHistoryTool ? [readChatHistoryTool] : []),
+    ...(broadcastToChatsTool ? [broadcastToChatsTool] : []),
+    ...(digestChatTool ? [digestChatTool] : []),
     createTtsTool({
       agentChannel: options?.agentChannel,
       config: options?.config,

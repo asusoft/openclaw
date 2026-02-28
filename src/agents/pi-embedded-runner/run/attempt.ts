@@ -20,7 +20,9 @@ import type {
 } from "../../../plugins/types.js";
 import { isSubagentSessionKey } from "../../../routing/session-key.js";
 import { resolveSignalReactionLevel } from "../../../signal/reaction-level.js";
+import { loadChatRegistryAsContextFile } from "../../../telegram/chat-registry.js";
 import { resolveTelegramInlineButtonsScope } from "../../../telegram/inline-buttons.js";
+import { loadPeopleRegistryAsContextFile } from "../../../telegram/people-registry.js";
 import { resolveTelegramReactionLevel } from "../../../telegram/reaction-level.js";
 import { buildTtsSystemPromptHint } from "../../../tts/tts.js";
 import { resolveUserPath } from "../../../utils.js";
@@ -39,6 +41,7 @@ import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
+import { loadMemoryAsContextFile } from "../../memory-store.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import { normalizeProviderId, resolveDefaultModelForAgent } from "../../model-selection.js";
 import { createOllamaStreamFn, OLLAMA_NATIVE_BASE_URL } from "../../ollama-stream.js";
@@ -475,7 +478,7 @@ export async function runEmbeddedAttempt(
     });
 
     const sessionLabel = params.sessionKey ?? params.sessionId;
-    const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles } =
+    const { bootstrapFiles: hookAdjustedBootstrapFiles, contextFiles: bootstrapContextFiles } =
       await resolveBootstrapContextForRun({
         workspaceDir: effectiveWorkspace,
         config: params.config,
@@ -483,6 +486,28 @@ export async function runEmbeddedAttempt(
         sessionId: params.sessionId,
         warn: makeBootstrapWarn({ sessionLabel, warn: (message) => log.warn(message) }),
       });
+    // Cross-context registry: append CHATS.md when crossContextRoutes is configured,
+    // giving the agent natural-language chat ID resolution without extra tooling.
+    let contextFiles = bootstrapContextFiles;
+    if ((params.config as { crossContextRoutes?: unknown })?.crossContextRoutes) {
+      const chatRegistryFile = await loadChatRegistryAsContextFile(effectiveWorkspace);
+      if (chatRegistryFile) {
+        contextFiles = [...contextFiles, chatRegistryFile];
+      }
+    }
+    // Shared memory and people profiles: always injected when present.
+    // MEMORY.md holds agent-written notes; PEOPLE.md holds auto-built sender stubs.
+    const [memoryFile, peopleFile] = await Promise.all([
+      loadMemoryAsContextFile(effectiveWorkspace),
+      loadPeopleRegistryAsContextFile(effectiveWorkspace),
+    ]);
+    if (memoryFile) {
+      contextFiles = [...contextFiles, memoryFile];
+    }
+    if (peopleFile) {
+      contextFiles = [...contextFiles, peopleFile];
+    }
+
     const workspaceNotes = hookAdjustedBootstrapFiles.some(
       (file) => file.name === DEFAULT_BOOTSTRAP_FILENAME && !file.missing,
     )

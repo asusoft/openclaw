@@ -4,6 +4,7 @@ import type {
   ChannelThreadingToolContext,
 } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
+import { evaluateCrossContextRoutePolicy } from "../../routing/cross-context-routes.js";
 import {
   getChannelMessageAdapter,
   type CrossContextComponentsBuilder,
@@ -103,6 +104,29 @@ export function enforceCrossContextPolicy(params: {
 
   if (params.cfg.tools?.message?.allowCrossContextSend) {
     return;
+  }
+
+  // crossContextRoutes whitelist check (fork extension — gates before existing policy).
+  // When crossContextRoutes is absent this call returns undefined and we fall through
+  // to the existing allowWithinProvider / allowAcrossProviders logic unchanged.
+  const guardTarget = resolveContextGuardTarget(params.action, params.args);
+  if (guardTarget) {
+    const currentProvider_ = params.toolContext?.currentChannelProvider;
+    const routeResult = evaluateCrossContextRoutePolicy({
+      fromChannel: currentProvider_ ?? params.channel,
+      fromChatId: currentTarget,
+      toChannel: params.channel,
+      toChatId: guardTarget,
+      cfg: params.cfg,
+    });
+    if (routeResult !== undefined) {
+      if (routeResult.allowed) {
+        return; // Explicitly permitted by crossContextRoutes whitelist.
+      }
+      throw new Error(
+        `Cross-context messaging denied by crossContextRoutes policy: action=${params.action} from="${currentProvider_ ?? params.channel}:${currentTarget}" to="${params.channel}:${guardTarget}". ${routeResult.reason}`,
+      );
+    }
   }
 
   const currentProvider = params.toolContext?.currentChannelProvider;
