@@ -13,6 +13,7 @@ import type { ThemeMode } from "./theme.ts";
 import type {
   AgentsListResult,
   AgentsFilesListResult,
+  AgentsSharedFilesListResult,
   AgentIdentityResult,
   ChannelsStatusSnapshot,
   ConfigSnapshot,
@@ -149,6 +150,13 @@ export type AppViewState = {
   agentFileDrafts: Record<string, string>;
   agentFileActive: string | null;
   agentFileSaving: boolean;
+  sharedFilesLoading: boolean;
+  sharedFilesError: string | null;
+  sharedFilesList: AgentsSharedFilesListResult | null;
+  sharedFileContents: Record<string, string>;
+  sharedFileDrafts: Record<string, string>;
+  sharedFileActive: string | null;
+  sharedFileSaving: boolean;
   agentIdentityLoading: boolean;
   agentIdentityError: string | null;
   agentIdentityById: Record<string, AgentIdentityResult>;

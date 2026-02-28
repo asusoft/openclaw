@@ -6,6 +6,7 @@ import {
   resolveAgentWorkspaceDir,
 } from "../../agents/agent-scope.js";
 import {
+  DEFAULT_AGENT_WORKSPACE_DIR,
   DEFAULT_AGENTS_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
   DEFAULT_HEARTBEAT_FILENAME,
@@ -42,6 +43,8 @@ import {
   validateAgentsFilesGetParams,
   validateAgentsFilesListParams,
   validateAgentsFilesSetParams,
+  validateAgentsSharedFilesGetParams,
+  validateAgentsSharedFilesSetParams,
   validateAgentsListParams,
   validateAgentsUpdateParams,
 } from "../protocol/index.js";
@@ -304,6 +307,59 @@ async function listAgentFiles(workspaceDir: string, options?: { hideBootstrap?: 
         name: DEFAULT_MEMORY_FILENAME,
         path: primaryResolved.requestPath,
         missing: true,
+      });
+    }
+  }
+
+  return files;
+}
+
+// Validates that a shared workspace filename is safe: .md extension, no path separators.
+function isValidSharedFileName(name: string): boolean {
+  if (!name.endsWith(".md")) {
+    return false;
+  }
+  if (name.includes("/") || name.includes("\\")) {
+    return false;
+  }
+  if (name.startsWith(".")) {
+    return false;
+  }
+  return name.length > 0;
+}
+
+async function listSharedFiles(workspaceDir: string) {
+  const files: Array<{
+    name: string;
+    path: string;
+    missing: boolean;
+    size?: number;
+    updatedAtMs?: number;
+  }> = [];
+
+  let names: string[];
+  try {
+    names = await fs.readdir(workspaceDir);
+  } catch {
+    return files;
+  }
+
+  const mdNames = names.filter((name) => name.endsWith(".md") && !name.startsWith(".")).toSorted();
+
+  for (const name of mdNames) {
+    const resolved = await resolveAgentWorkspaceFilePath({
+      workspaceDir,
+      name,
+      allowMissing: false,
+    });
+    if (resolved.kind === "ready") {
+      const meta = await statFileSafely(resolved.ioPath);
+      files.push({
+        name,
+        path: resolved.requestPath,
+        missing: false,
+        size: meta?.size,
+        updatedAtMs: meta?.updatedAtMs,
       });
     }
   }
@@ -722,6 +778,165 @@ export const agentsHandlers: GatewayRequestHandlers = {
       {
         ok: true,
         agentId,
+        workspace: workspaceDir,
+        file: {
+          name,
+          path: filePath,
+          missing: false,
+          size: meta?.size,
+          updatedAtMs: meta?.updatedAtMs,
+          content,
+        },
+      },
+      undefined,
+    );
+  },
+  "agents.shared.files.list": async ({ respond }) => {
+    const workspaceDir = DEFAULT_AGENT_WORKSPACE_DIR;
+    const files = await listSharedFiles(workspaceDir);
+    respond(true, { workspace: workspaceDir, files }, undefined);
+  },
+  "agents.shared.files.get": async ({ params, respond }) => {
+    if (!validateAgentsSharedFilesGetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid agents.shared.files.get params: ${formatValidationErrors(
+            validateAgentsSharedFilesGetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const workspaceDir = DEFAULT_AGENT_WORKSPACE_DIR;
+    const name = (typeof params.name === "string" ? params.name : "").trim();
+    if (!isValidSharedFileName(name)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsupported shared file "${name}"`),
+      );
+      return;
+    }
+    const filePath = path.join(workspaceDir, name);
+    const resolvedPath = await resolveAgentWorkspaceFilePath({
+      workspaceDir,
+      name,
+      allowMissing: true,
+    });
+    if (resolvedPath.kind === "invalid") {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsafe shared file "${name}"`),
+      );
+      return;
+    }
+    if (resolvedPath.kind === "missing") {
+      respond(
+        true,
+        { workspace: workspaceDir, file: { name, path: filePath, missing: true } },
+        undefined,
+      );
+      return;
+    }
+    let safeRead: Awaited<ReturnType<typeof readLocalFileSafely>>;
+    try {
+      safeRead = await readLocalFileSafely({ filePath: resolvedPath.ioPath });
+    } catch (err) {
+      if (err instanceof SafeOpenError && err.code === "not-found") {
+        respond(
+          true,
+          { workspace: workspaceDir, file: { name, path: filePath, missing: true } },
+          undefined,
+        );
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsafe shared file "${name}"`),
+      );
+      return;
+    }
+    respond(
+      true,
+      {
+        workspace: workspaceDir,
+        file: {
+          name,
+          path: filePath,
+          missing: false,
+          size: safeRead.stat.size,
+          updatedAtMs: Math.floor(safeRead.stat.mtimeMs),
+          content: safeRead.buffer.toString("utf-8"),
+        },
+      },
+      undefined,
+    );
+  },
+  "agents.shared.files.set": async ({ params, respond }) => {
+    if (!validateAgentsSharedFilesSetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid agents.shared.files.set params: ${formatValidationErrors(
+            validateAgentsSharedFilesSetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const workspaceDir = DEFAULT_AGENT_WORKSPACE_DIR;
+    const name = (typeof params.name === "string" ? params.name : "").trim();
+    if (!isValidSharedFileName(name)) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsupported shared file "${name}"`),
+      );
+      return;
+    }
+    await fs.mkdir(workspaceDir, { recursive: true });
+    const filePath = path.join(workspaceDir, name);
+    const resolvedPath = await resolveAgentWorkspaceFilePath({
+      workspaceDir,
+      name,
+      allowMissing: true,
+    });
+    if (resolvedPath.kind === "invalid") {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsafe shared file "${name}"`),
+      );
+      return;
+    }
+    const content = String(params.content ?? "");
+    try {
+      await writeFileWithinRoot({
+        rootDir: workspaceDir,
+        relativePath: name,
+        data: content,
+        encoding: "utf8",
+      });
+    } catch {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `unsafe shared file "${name}"`),
+      );
+      return;
+    }
+    const meta = await statFileSafely(resolvedPath.ioPath);
+    respond(
+      true,
+      {
+        ok: true,
         workspace: workspaceDir,
         file: {
           name,

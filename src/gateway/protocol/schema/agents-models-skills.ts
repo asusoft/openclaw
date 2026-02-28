@@ -164,6 +164,48 @@ export const AgentsFilesSetResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const AgentsSharedFilesListParamsSchema = Type.Object({}, { additionalProperties: false });
+
+export const AgentsSharedFilesListResultSchema = Type.Object(
+  {
+    workspace: NonEmptyString,
+    files: Type.Array(AgentsFileEntrySchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsSharedFilesGetParamsSchema = Type.Object(
+  {
+    name: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsSharedFilesGetResultSchema = Type.Object(
+  {
+    workspace: NonEmptyString,
+    file: AgentsFileEntrySchema,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsSharedFilesSetParamsSchema = Type.Object(
+  {
+    name: NonEmptyString,
+    content: Type.String(),
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsSharedFilesSetResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    workspace: NonEmptyString,
+    file: AgentsFileEntrySchema,
+  },
+  { additionalProperties: false },
+);
+
 export const ModelsListParamsSchema = Type.Object({}, { additionalProperties: false });
 
 export const ModelsListResultSchema = Type.Object(

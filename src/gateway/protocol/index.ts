@@ -36,6 +36,18 @@ import {
   AgentsFilesSetParamsSchema,
   type AgentsFilesSetResult,
   AgentsFilesSetResultSchema,
+  type AgentsSharedFilesGetParams,
+  AgentsSharedFilesGetParamsSchema,
+  type AgentsSharedFilesGetResult,
+  AgentsSharedFilesGetResultSchema,
+  type AgentsSharedFilesListParams,
+  AgentsSharedFilesListParamsSchema,
+  type AgentsSharedFilesListResult,
+  AgentsSharedFilesListResultSchema,
+  type AgentsSharedFilesSetParams,
+  AgentsSharedFilesSetParamsSchema,
+  type AgentsSharedFilesSetResult,
+  AgentsSharedFilesSetResultSchema,
   type AgentsListParams,
   AgentsListParamsSchema,
   type AgentsListResult,
@@ -262,6 +274,12 @@ export const validateAgentsFilesGetParams = ajv.compile<AgentsFilesGetParams>(
 export const validateAgentsFilesSetParams = ajv.compile<AgentsFilesSetParams>(
   AgentsFilesSetParamsSchema,
 );
+export const validateAgentsSharedFilesGetParams = ajv.compile<AgentsSharedFilesGetParams>(
+  AgentsSharedFilesGetParamsSchema,
+);
+export const validateAgentsSharedFilesSetParams = ajv.compile<AgentsSharedFilesSetParams>(
+  AgentsSharedFilesSetParamsSchema,
+);
 export const validateNodePairRequestParams = ajv.compile<NodePairRequestParams>(
   NodePairRequestParamsSchema,
 );
@@ -487,6 +505,12 @@ export {
   AgentsFilesGetResultSchema,
   AgentsFilesSetParamsSchema,
   AgentsFilesSetResultSchema,
+  AgentsSharedFilesListParamsSchema,
+  AgentsSharedFilesListResultSchema,
+  AgentsSharedFilesGetParamsSchema,
+  AgentsSharedFilesGetResultSchema,
+  AgentsSharedFilesSetParamsSchema,
+  AgentsSharedFilesSetResultSchema,
   AgentsListParamsSchema,
   AgentsListResultSchema,
   ModelsListParamsSchema,
@@ -577,6 +601,12 @@ export type {
   AgentsFilesGetResult,
   AgentsFilesSetParams,
   AgentsFilesSetResult,
+  AgentsSharedFilesListParams,
+  AgentsSharedFilesListResult,
+  AgentsSharedFilesGetParams,
+  AgentsSharedFilesGetResult,
+  AgentsSharedFilesSetParams,
+  AgentsSharedFilesSetResult,
   AgentsListParams,
   AgentsListResult,
   SkillsStatusParams,

@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "../config/config.js";
 import { resolvePluginTools } from "../plugins/tools.js";
 import type { GatewayMessageChannel } from "../utils/message-channel.js";
-import { resolveSessionAgentId } from "./agent-scope.js";
+import { resolveAgentConfig, resolveSessionAgentId } from "./agent-scope.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
 import type { ToolFsPolicy } from "./tool-fs-policy.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
@@ -13,6 +13,7 @@ import { createCronTool } from "./tools/cron-tool.js";
 import { createDigestChatTool } from "./tools/digest-chat-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
+import { createManageAgentsTool } from "./tools/manage-agents-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
 import { createNodesTool } from "./tools/nodes-tool.js";
 import { createReadChatHistoryTool } from "./tools/read-chat-history-tool.js";
@@ -26,6 +27,7 @@ import { createSubagentsTool } from "./tools/subagents-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createUpdateMemoryTool } from "./tools/update-memory-tool.js";
 import { createUpdatePersonTool } from "./tools/update-person-tool.js";
+import { createUpdateSharedKnowledgeTool } from "./tools/update-shared-knowledge-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
 
@@ -77,6 +79,15 @@ export function createOpenClawTools(options?: {
   senderIsOwner?: boolean;
 }): AnyAgentTool[] {
   const workspaceDir = resolveWorkspaceRoot(options?.workspaceDir);
+  // Resolve the current agent's role for admin-gated tools.
+  const sessionAgentId = resolveSessionAgentId({
+    sessionKey: options?.agentSessionKey,
+    config: options?.config,
+  });
+  const agentCfg = sessionAgentId
+    ? resolveAgentConfig(options?.config as OpenClawConfig, sessionAgentId)
+    : undefined;
+  const isAdmin = agentCfg?.role === "admin";
   const imageTool = options?.agentDir?.trim()
     ? createImageTool({
         config: options?.config,
@@ -221,6 +232,10 @@ export function createOpenClawTools(options?: {
     ...(webSearchTool ? [webSearchTool] : []),
     ...(webFetchTool ? [webFetchTool] : []),
     ...(imageTool ? [imageTool] : []),
+    // Shared knowledge: always available; writes go to the shared workspace.
+    createUpdateSharedKnowledgeTool(),
+    // Admin-only: manage other agents' roles and tool policies.
+    ...(isAdmin ? [createManageAgentsTool({ config: options?.config })] : []),
   ];
 
   const pluginTools = resolvePluginTools({
@@ -228,10 +243,7 @@ export function createOpenClawTools(options?: {
       config: options?.config,
       workspaceDir,
       agentDir: options?.agentDir,
-      agentId: resolveSessionAgentId({
-        sessionKey: options?.agentSessionKey,
-        config: options?.config,
-      }),
+      agentId: sessionAgentId,
       sessionKey: options?.agentSessionKey,
       messageChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,
@@ -241,5 +253,14 @@ export function createOpenClawTools(options?: {
     toolAllowlist: options?.pluginToolAllowlist,
   });
 
-  return [...tools, ...pluginTools];
+  const allTools = [...tools, ...pluginTools];
+
+  // Apply per-agent tool deny list from config (blocks specific tools by name).
+  const toolDeny = agentCfg?.tools?.deny;
+  if (toolDeny && toolDeny.length > 0) {
+    const denySet = new Set(toolDeny);
+    return allTools.filter((t) => !denySet.has(t.name));
+  }
+
+  return allTools;
 }

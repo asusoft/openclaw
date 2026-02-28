@@ -5,10 +5,15 @@ import type { HumanDelayConfig, IdentityConfig } from "./types.base.js";
 import type { GroupChatConfig } from "./types.messages.js";
 import type { AgentToolsConfig, MemorySearchConfig } from "./types.tools.js";
 
+/** Role controls admin-only tool access (e.g. manage_agents). */
+export type AgentRole = "admin" | "standard";
+
 export type AgentConfig = {
   id: string;
   default?: boolean;
   name?: string;
+  /** Agent role. 'admin' unlocks admin-only tools (manage_agents). Default: 'standard'. */
+  role?: AgentRole;
   workspace?: string;
   agentDir?: string;
   model?: AgentModelConfig;

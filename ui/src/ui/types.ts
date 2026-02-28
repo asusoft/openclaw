@@ -409,6 +409,22 @@ export type AgentsFilesSetResult = {
   file: AgentFileEntry;
 };
 
+export type AgentsSharedFilesListResult = {
+  workspace: string;
+  files: AgentFileEntry[];
+};
+
+export type AgentsSharedFilesGetResult = {
+  workspace: string;
+  file: AgentFileEntry;
+};
+
+export type AgentsSharedFilesSetResult = {
+  ok: true;
+  workspace: string;
+  file: AgentFileEntry;
+};
+
 export type GatewaySessionRow = {
   key: string;
   kind: "direct" | "group" | "global" | "unknown";

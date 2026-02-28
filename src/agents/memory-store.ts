@@ -12,6 +12,9 @@ import path from "node:path";
 
 export const MEMORY_FILENAME = "MEMORY.md";
 
+/** Shared knowledge .md files that live in the shared workspace but are NOT MEMORY.md. */
+const SHARED_KNOWLEDGE_SKIP = new Set(["MEMORY.md", "CHATS.md", "PEOPLE.md"]);
+
 const MEMORY_HEADER = [
   "# Memory",
   "",
@@ -103,6 +106,40 @@ export async function updateMemorySection(
 
   await fs.mkdir(workspaceDir, { recursive: true });
   await fs.writeFile(filePath, buildFile(sections));
+}
+
+/**
+ * Load all shared knowledge .md files from the shared workspace directory
+ * (e.g. COMPANY.md, KNOWLEDGE.md, TEAMS.md) — excludes MEMORY.md, CHATS.md, PEOPLE.md.
+ * Files are returned in alphabetical order so context injection is stable.
+ */
+export async function loadSharedKnowledgeFiles(
+  sharedWorkspaceDir: string,
+): Promise<Array<{ path: string; content: string }>> {
+  try {
+    const entries = await fs.readdir(sharedWorkspaceDir, { withFileTypes: true });
+    const mdNames = entries
+      .filter((e) => e.isFile() && e.name.endsWith(".md") && !SHARED_KNOWLEDGE_SKIP.has(e.name))
+      .map((e) => e.name)
+      .toSorted();
+    const results = await Promise.all(
+      mdNames.map(async (name) => {
+        const filePath = path.join(sharedWorkspaceDir, name);
+        try {
+          const content = await fs.readFile(filePath, "utf8");
+          if (!content.trim()) {
+            return null;
+          }
+          return { path: filePath, content };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return results.filter((r): r is { path: string; content: string } => r !== null);
+  } catch {
+    return [];
+  }
 }
 
 /**

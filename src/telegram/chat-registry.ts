@@ -15,6 +15,8 @@ import path from "node:path";
 import { listAgentIds, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "../agents/workspace.js";
 import type { OpenClawConfig } from "../config/config.js";
+import { listBindings } from "../routing/bindings.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 
 export const CHAT_REGISTRY_FILENAME = "CHATS.md";
 
@@ -90,12 +92,13 @@ export async function updateChatRegistry(
 }
 
 /**
- * Upserts a chat entry in CHATS.md for every configured agent workspace.
+ * Upserts a chat entry in CHATS.md for scoped agent workspaces.
  *
- * In multi-agent setups each agent may have a distinct workspace directory.
- * This ensures all agents can resolve chat IDs by name regardless of which
- * workspace they are bound to.  The default workspace is always included so
- * single-agent deployments keep working without any agents config.
+ * The DEFAULT workspace always receives the entry (admin/main agent visibility).
+ * For per-agent workspaces: if `options.accountId` is provided (the Telegram bot
+ * that received the message), only agents whose bindings include that accountId
+ * get the entry — so a finance bot's agent won't see the CEO's DM chat.
+ * If no accountId is provided, all agent workspaces are written (backward compat).
  *
  * All writes are fire-and-forget; individual failures are silently swallowed
  * so a bad custom workspace path never blocks message processing.
@@ -103,6 +106,7 @@ export async function updateChatRegistry(
 export async function updateChatRegistryForAllWorkspaces(
   cfg: OpenClawConfig,
   entry: ChatRegistryEntry,
+  options?: { accountId?: string },
 ): Promise<void> {
   // Resolve alias for this chatId from the chatAliases config map.
   const aliases = (cfg as { chatAliases?: Record<string, string> }).chatAliases;
@@ -111,12 +115,41 @@ export async function updateChatRegistryForAllWorkspaces(
     : undefined;
   const enrichedEntry: ChatRegistryEntry = alias ? { ...entry, alias } : entry;
 
-  // Collect the unique set of workspace dirs for all configured agents plus
-  // the default workspace (covers deployments with no explicit agents config).
+  // DEFAULT workspace always gets the entry (covers single-agent and admin agent).
   const dirs = new Set<string>([DEFAULT_AGENT_WORKSPACE_DIR]);
+
+  const incomingAccountId = options?.accountId;
+  const bindings = listBindings(cfg);
+
   for (const agentId of listAgentIds(cfg)) {
-    dirs.add(resolveAgentWorkspaceDir(cfg, agentId));
+    const agentWorkspace = resolveAgentWorkspaceDir(cfg, agentId);
+    if (agentWorkspace === DEFAULT_AGENT_WORKSPACE_DIR) {
+      // Already included above.
+      continue;
+    }
+    if (!incomingAccountId) {
+      // No accountId filter: include all (backward compat).
+      dirs.add(agentWorkspace);
+      continue;
+    }
+    // Only include this agent if it has a Telegram binding for the incoming bot account.
+    const normalizedId = normalizeAgentId(agentId);
+    const hasMatchingBinding = bindings.some((b) => {
+      if (normalizeAgentId(b.agentId) !== normalizedId) {
+        return false;
+      }
+      const ch = (b.match.channel ?? "").toLowerCase();
+      if (!ch.includes("telegram")) {
+        return false;
+      }
+      // If the binding has no accountId restriction, it matches any account.
+      return !b.match.accountId || b.match.accountId === incomingAccountId;
+    });
+    if (hasMatchingBinding) {
+      dirs.add(agentWorkspace);
+    }
   }
+
   await Promise.all(
     [...dirs].map((dir) => updateChatRegistry(dir, enrichedEntry).catch(() => void 0)),
   );

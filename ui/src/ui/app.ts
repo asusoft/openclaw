@@ -65,6 +65,7 @@ import type { ResolvedTheme, ThemeMode } from "./theme.ts";
 import type {
   AgentsListResult,
   AgentsFilesListResult,
+  AgentsSharedFilesListResult,
   AgentIdentityResult,
   ConfigSnapshot,
   ConfigUiHints,
@@ -230,6 +231,13 @@ export class OpenClawApp extends LitElement {
   @state() agentFileDrafts: Record<string, string> = {};
   @state() agentFileActive: string | null = null;
   @state() agentFileSaving = false;
+  @state() sharedFilesLoading = false;
+  @state() sharedFilesError: string | null = null;
+  @state() sharedFilesList: AgentsSharedFilesListResult | null = null;
+  @state() sharedFileContents: Record<string, string> = {};
+  @state() sharedFileDrafts: Record<string, string> = {};
+  @state() sharedFileActive: string | null = null;
+  @state() sharedFileSaving = false;
   @state() agentIdentityLoading = false;
   @state() agentIdentityError: string | null = null;
   @state() agentIdentityById: Record<string, AgentIdentityResult> = {};

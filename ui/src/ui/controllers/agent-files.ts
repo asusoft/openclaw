@@ -4,6 +4,9 @@ import type {
   AgentsFilesGetResult,
   AgentsFilesListResult,
   AgentsFilesSetResult,
+  AgentsSharedFilesGetResult,
+  AgentsSharedFilesListResult,
+  AgentsSharedFilesSetResult,
 } from "../types.ts";
 
 export type AgentFilesState = {
@@ -16,6 +19,18 @@ export type AgentFilesState = {
   agentFileDrafts: Record<string, string>;
   agentFileActive: string | null;
   agentFileSaving: boolean;
+};
+
+export type SharedFilesState = {
+  client: GatewayBrowserClient | null;
+  connected: boolean;
+  sharedFilesLoading: boolean;
+  sharedFilesError: string | null;
+  sharedFilesList: AgentsSharedFilesListResult | null;
+  sharedFileContents: Record<string, string>;
+  sharedFileDrafts: Record<string, string>;
+  sharedFileActive: string | null;
+  sharedFileSaving: boolean;
 };
 
 function mergeFileEntry(
@@ -122,5 +137,109 @@ export async function saveAgentFile(
     state.agentFilesError = String(err);
   } finally {
     state.agentFileSaving = false;
+  }
+}
+
+function mergeSharedFileEntry(
+  list: AgentsSharedFilesListResult | null,
+  entry: AgentFileEntry,
+): AgentsSharedFilesListResult | null {
+  if (!list) {
+    return list;
+  }
+  const hasEntry = list.files.some((file) => file.name === entry.name);
+  const nextFiles = hasEntry
+    ? list.files.map((file) => (file.name === entry.name ? entry : file))
+    : [...list.files, entry];
+  return { ...list, files: nextFiles };
+}
+
+export async function loadSharedFiles(state: SharedFilesState) {
+  if (!state.client || !state.connected || state.sharedFilesLoading) {
+    return;
+  }
+  state.sharedFilesLoading = true;
+  state.sharedFilesError = null;
+  try {
+    const res = await state.client.request<AgentsSharedFilesListResult | null>(
+      "agents.shared.files.list",
+      {},
+    );
+    if (res) {
+      state.sharedFilesList = res;
+      if (
+        state.sharedFileActive &&
+        !res.files.some((file) => file.name === state.sharedFileActive)
+      ) {
+        state.sharedFileActive = null;
+      }
+    }
+  } catch (err) {
+    state.sharedFilesError = String(err);
+  } finally {
+    state.sharedFilesLoading = false;
+  }
+}
+
+export async function loadSharedFileContent(
+  state: SharedFilesState,
+  name: string,
+  opts?: { force?: boolean; preserveDraft?: boolean },
+) {
+  if (!state.client || !state.connected || state.sharedFilesLoading) {
+    return;
+  }
+  if (!opts?.force && Object.hasOwn(state.sharedFileContents, name)) {
+    return;
+  }
+  state.sharedFilesLoading = true;
+  state.sharedFilesError = null;
+  try {
+    const res = await state.client.request<AgentsSharedFilesGetResult | null>(
+      "agents.shared.files.get",
+      { name },
+    );
+    if (res?.file) {
+      const content = res.file.content ?? "";
+      const previousBase = state.sharedFileContents[name] ?? "";
+      const currentDraft = state.sharedFileDrafts[name];
+      const preserveDraft = opts?.preserveDraft ?? true;
+      state.sharedFilesList = mergeSharedFileEntry(state.sharedFilesList, res.file);
+      state.sharedFileContents = { ...state.sharedFileContents, [name]: content };
+      if (
+        !preserveDraft ||
+        !Object.hasOwn(state.sharedFileDrafts, name) ||
+        currentDraft === previousBase
+      ) {
+        state.sharedFileDrafts = { ...state.sharedFileDrafts, [name]: content };
+      }
+    }
+  } catch (err) {
+    state.sharedFilesError = String(err);
+  } finally {
+    state.sharedFilesLoading = false;
+  }
+}
+
+export async function saveSharedFile(state: SharedFilesState, name: string, content: string) {
+  if (!state.client || !state.connected || state.sharedFileSaving) {
+    return;
+  }
+  state.sharedFileSaving = true;
+  state.sharedFilesError = null;
+  try {
+    const res = await state.client.request<AgentsSharedFilesSetResult | null>(
+      "agents.shared.files.set",
+      { name, content },
+    );
+    if (res?.file) {
+      state.sharedFilesList = mergeSharedFileEntry(state.sharedFilesList, res.file);
+      state.sharedFileContents = { ...state.sharedFileContents, [name]: content };
+      state.sharedFileDrafts = { ...state.sharedFileDrafts, [name]: content };
+    }
+  } catch (err) {
+    state.sharedFilesError = String(err);
+  } finally {
+    state.sharedFileSaving = false;
   }
 }

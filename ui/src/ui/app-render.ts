@@ -5,7 +5,14 @@ import { refreshChatAvatar } from "./app-chat.ts";
 import { renderUsageTab } from "./app-render-usage-tab.ts";
 import { renderChatControls, renderTab, renderThemeToggle } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import { loadAgentFileContent, loadAgentFiles, saveAgentFile } from "./controllers/agent-files.ts";
+import {
+  loadAgentFileContent,
+  loadAgentFiles,
+  saveAgentFile,
+  loadSharedFiles,
+  loadSharedFileContent,
+  saveSharedFile,
+} from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents, loadToolsCatalog } from "./controllers/agents.ts";
@@ -537,6 +544,13 @@ export function renderApp(state: AppViewState) {
                 agentFileContents: state.agentFileContents,
                 agentFileDrafts: state.agentFileDrafts,
                 agentFileSaving: state.agentFileSaving,
+                sharedFilesLoading: state.sharedFilesLoading,
+                sharedFilesError: state.sharedFilesError,
+                sharedFilesList: state.sharedFilesList,
+                sharedFileActive: state.sharedFileActive,
+                sharedFileContents: state.sharedFileContents,
+                sharedFileDrafts: state.sharedFileDrafts,
+                sharedFileSaving: state.sharedFileSaving,
                 agentIdentityLoading: state.agentIdentityLoading,
                 agentIdentityError: state.agentIdentityError,
                 agentIdentityById: state.agentIdentityById,
@@ -597,6 +611,9 @@ export function renderApp(state: AppViewState) {
                       state.agentFileDrafts = {};
                       void loadAgentFiles(state, resolvedAgentId);
                     }
+                    if (!state.sharedFilesList) {
+                      void loadSharedFiles(state);
+                    }
                   }
                   if (panel === "tools") {
                     void loadToolsCatalog(state, resolvedAgentId);
@@ -635,6 +652,23 @@ export function renderApp(state: AppViewState) {
                   const content =
                     state.agentFileDrafts[name] ?? state.agentFileContents[name] ?? "";
                   void saveAgentFile(state, resolvedAgentId, name, content);
+                },
+                onLoadSharedFiles: () => loadSharedFiles(state),
+                onSelectSharedFile: (name) => {
+                  state.sharedFileActive = name;
+                  void loadSharedFileContent(state, name);
+                },
+                onSharedFileDraftChange: (name, content) => {
+                  state.sharedFileDrafts = { ...state.sharedFileDrafts, [name]: content };
+                },
+                onSharedFileReset: (name) => {
+                  const base = state.sharedFileContents[name] ?? "";
+                  state.sharedFileDrafts = { ...state.sharedFileDrafts, [name]: base };
+                },
+                onSharedFileSave: (name) => {
+                  const content =
+                    state.sharedFileDrafts[name] ?? state.sharedFileContents[name] ?? "";
+                  void saveSharedFile(state, name, content);
                 },
                 onToolsProfileChange: (agentId, profile, clearAllow) => {
                   if (!configValue) {

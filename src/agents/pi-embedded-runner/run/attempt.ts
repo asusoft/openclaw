@@ -41,7 +41,7 @@ import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
-import { loadMemoryAsContextFile } from "../../memory-store.js";
+import { loadMemoryAsContextFile, loadSharedKnowledgeFiles } from "../../memory-store.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import { normalizeProviderId, resolveDefaultModelForAgent } from "../../model-selection.js";
 import { createOllamaStreamFn, OLLAMA_NATIVE_BASE_URL } from "../../ollama-stream.js";
@@ -78,7 +78,7 @@ import { buildSystemPromptReport } from "../../system-prompt-report.js";
 import { sanitizeToolCallIdsForCloudCodeAssist } from "../../tool-call-id.js";
 import { resolveEffectiveToolFsWorkspaceOnly } from "../../tool-fs-policy.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
-import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
+import { DEFAULT_AGENT_WORKSPACE_DIR, DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
 import { isRunnerAbortError } from "../abort.js";
 import { appendCacheTtlTimestamp, isCacheTtlEligibleProvider } from "../cache-ttl.js";
 import { buildEmbeddedExtensionFactories } from "../extensions.js";
@@ -496,16 +496,22 @@ export async function runEmbeddedAttempt(
       }
     }
     // Shared memory and people profiles: always injected when present.
-    // MEMORY.md holds agent-written notes; PEOPLE.md holds auto-built sender stubs.
-    const [memoryFile, peopleFile] = await Promise.all([
+    // MEMORY.md is per-agent (effectiveWorkspace); PEOPLE.md and shared knowledge
+    // files (COMPANY.md, KNOWLEDGE.md, TEAMS.md, etc.) are shared across all agents
+    // and read from the shared DEFAULT_AGENT_WORKSPACE_DIR.
+    const [memoryFile, peopleFile, sharedKnowledgeFiles] = await Promise.all([
       loadMemoryAsContextFile(effectiveWorkspace),
-      loadPeopleRegistryAsContextFile(effectiveWorkspace),
+      loadPeopleRegistryAsContextFile(DEFAULT_AGENT_WORKSPACE_DIR),
+      loadSharedKnowledgeFiles(DEFAULT_AGENT_WORKSPACE_DIR),
     ]);
     if (memoryFile) {
       contextFiles = [...contextFiles, memoryFile];
     }
     if (peopleFile) {
       contextFiles = [...contextFiles, peopleFile];
+    }
+    for (const sf of sharedKnowledgeFiles) {
+      contextFiles = [...contextFiles, sf];
     }
 
     const workspaceNotes = hookAdjustedBootstrapFiles.some(

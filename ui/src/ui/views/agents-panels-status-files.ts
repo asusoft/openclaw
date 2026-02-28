@@ -9,6 +9,7 @@ import {
 import type {
   AgentFileEntry,
   AgentsFilesListResult,
+  AgentsSharedFilesListResult,
   ChannelAccountSnapshot,
   ChannelsStatusSnapshot,
   CronJob,
@@ -501,5 +502,120 @@ function renderAgentFileRow(file: AgentFileEntry, active: string | null, onSelec
           : nothing
       }
     </button>
+  `;
+}
+
+export function renderSharedFiles(params: {
+  sharedFilesList: AgentsSharedFilesListResult | null;
+  sharedFilesLoading: boolean;
+  sharedFilesError: string | null;
+  sharedFileActive: string | null;
+  sharedFileContents: Record<string, string>;
+  sharedFileDrafts: Record<string, string>;
+  sharedFileSaving: boolean;
+  onLoadSharedFiles: () => void;
+  onSelectSharedFile: (name: string) => void;
+  onSharedFileDraftChange: (name: string, content: string) => void;
+  onSharedFileReset: (name: string) => void;
+  onSharedFileSave: (name: string) => void;
+}) {
+  const list = params.sharedFilesList;
+  const files = list?.files ?? [];
+  const active = params.sharedFileActive ?? null;
+  const activeEntry = active ? (files.find((file) => file.name === active) ?? null) : null;
+  const baseContent = active ? (params.sharedFileContents[active] ?? "") : "";
+  const draft = active ? (params.sharedFileDrafts[active] ?? baseContent) : "";
+  const isDirty = active ? draft !== baseContent : false;
+
+  return html`
+    <section class="card" style="margin-top: 16px;">
+      <div class="row" style="justify-content: space-between;">
+        <div>
+          <div class="card-title">Shared Knowledge</div>
+          <div class="card-sub">Shared workspace files (PEOPLE.md, CHATS.md, COMPANY.md, …)</div>
+        </div>
+        <button
+          class="btn btn--sm"
+          ?disabled=${params.sharedFilesLoading}
+          @click=${() => params.onLoadSharedFiles()}
+        >
+          ${params.sharedFilesLoading ? "Loading…" : "Refresh"}
+        </button>
+      </div>
+      ${
+        list
+          ? html`<div class="muted mono" style="margin-top: 8px;">Workspace: ${list.workspace}</div>`
+          : nothing
+      }
+      ${
+        params.sharedFilesError
+          ? html`<div class="callout danger" style="margin-top: 12px;">${params.sharedFilesError}</div>`
+          : nothing
+      }
+      ${
+        !list
+          ? html`
+              <div class="callout info" style="margin-top: 12px">
+                Load shared workspace files to view or edit shared memory, people profiles, and knowledge.
+              </div>
+            `
+          : files.length === 0
+            ? html`
+                <div class="muted" style="margin-top: 12px">No shared files found in workspace.</div>
+              `
+            : html`
+                <div class="agent-files-grid" style="margin-top: 16px;">
+                  <div class="agent-files-list">
+                    ${files.map((file) =>
+                      renderAgentFileRow(file, active, () => params.onSelectSharedFile(file.name)),
+                    )}
+                  </div>
+                  <div class="agent-files-editor">
+                    ${
+                      !activeEntry
+                        ? html`
+                            <div class="muted">Select a file to view or edit.</div>
+                          `
+                        : html`
+                            <div class="agent-file-header">
+                              <div>
+                                <div class="agent-file-title mono">${activeEntry.name}</div>
+                                <div class="agent-file-sub mono">${activeEntry.path}</div>
+                              </div>
+                              <div class="agent-file-actions">
+                                <button
+                                  class="btn btn--sm"
+                                  ?disabled=${!isDirty}
+                                  @click=${() => params.onSharedFileReset(activeEntry.name)}
+                                >
+                                  Reset
+                                </button>
+                                <button
+                                  class="btn btn--sm primary"
+                                  ?disabled=${params.sharedFileSaving || !isDirty}
+                                  @click=${() => params.onSharedFileSave(activeEntry.name)}
+                                >
+                                  ${params.sharedFileSaving ? "Saving…" : "Save"}
+                                </button>
+                              </div>
+                            </div>
+                            <label class="field" style="margin-top: 12px;">
+                              <span>Content</span>
+                              <textarea
+                                .value=${draft}
+                                @input=${(e: Event) =>
+                                  params.onSharedFileDraftChange(
+                                    activeEntry.name,
+                                    (e.target as HTMLTextAreaElement).value,
+                                  )}
+                              ></textarea>
+                            </label>
+                          `
+                    }
+                  </div>
+                </div>
+              `
+      }
+    </section>
   `;
 }

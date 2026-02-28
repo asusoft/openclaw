@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type {
   AgentIdentityResult,
   AgentsFilesListResult,
+  AgentsSharedFilesListResult,
   AgentsListResult,
   ChannelsStatusSnapshot,
   CronJob,
@@ -11,6 +12,7 @@ import type {
 } from "../types.ts";
 import {
   renderAgentFiles,
+  renderSharedFiles,
   renderAgentChannels,
   renderAgentCron,
 } from "./agents-panels-status-files.ts";
@@ -56,6 +58,13 @@ export type AgentsProps = {
   agentFileContents: Record<string, string>;
   agentFileDrafts: Record<string, string>;
   agentFileSaving: boolean;
+  sharedFilesLoading: boolean;
+  sharedFilesError: string | null;
+  sharedFilesList: AgentsSharedFilesListResult | null;
+  sharedFileActive: string | null;
+  sharedFileContents: Record<string, string>;
+  sharedFileDrafts: Record<string, string>;
+  sharedFileSaving: boolean;
   agentIdentityLoading: boolean;
   agentIdentityError: string | null;
   agentIdentityById: Record<string, AgentIdentityResult>;
@@ -75,6 +84,11 @@ export type AgentsProps = {
   onFileDraftChange: (name: string, content: string) => void;
   onFileReset: (name: string) => void;
   onFileSave: (name: string) => void;
+  onLoadSharedFiles: () => void;
+  onSelectSharedFile: (name: string) => void;
+  onSharedFileDraftChange: (name: string, content: string) => void;
+  onSharedFileReset: (name: string) => void;
+  onSharedFileSave: (name: string) => void;
   onToolsProfileChange: (agentId: string, profile: string | null, clearAllow: boolean) => void;
   onToolsOverridesChange: (agentId: string, alsoAllow: string[], deny: string[]) => void;
   onConfigReload: () => void;
@@ -189,21 +203,37 @@ export function renderAgents(props: AgentsProps) {
                 }
                 ${
                   props.activePanel === "files"
-                    ? renderAgentFiles({
-                        agentId: selectedAgent.id,
-                        agentFilesList: props.agentFilesList,
-                        agentFilesLoading: props.agentFilesLoading,
-                        agentFilesError: props.agentFilesError,
-                        agentFileActive: props.agentFileActive,
-                        agentFileContents: props.agentFileContents,
-                        agentFileDrafts: props.agentFileDrafts,
-                        agentFileSaving: props.agentFileSaving,
-                        onLoadFiles: props.onLoadFiles,
-                        onSelectFile: props.onSelectFile,
-                        onFileDraftChange: props.onFileDraftChange,
-                        onFileReset: props.onFileReset,
-                        onFileSave: props.onFileSave,
-                      })
+                    ? html`
+                        ${renderAgentFiles({
+                          agentId: selectedAgent.id,
+                          agentFilesList: props.agentFilesList,
+                          agentFilesLoading: props.agentFilesLoading,
+                          agentFilesError: props.agentFilesError,
+                          agentFileActive: props.agentFileActive,
+                          agentFileContents: props.agentFileContents,
+                          agentFileDrafts: props.agentFileDrafts,
+                          agentFileSaving: props.agentFileSaving,
+                          onLoadFiles: props.onLoadFiles,
+                          onSelectFile: props.onSelectFile,
+                          onFileDraftChange: props.onFileDraftChange,
+                          onFileReset: props.onFileReset,
+                          onFileSave: props.onFileSave,
+                        })}
+                        ${renderSharedFiles({
+                          sharedFilesList: props.sharedFilesList,
+                          sharedFilesLoading: props.sharedFilesLoading,
+                          sharedFilesError: props.sharedFilesError,
+                          sharedFileActive: props.sharedFileActive,
+                          sharedFileContents: props.sharedFileContents,
+                          sharedFileDrafts: props.sharedFileDrafts,
+                          sharedFileSaving: props.sharedFileSaving,
+                          onLoadSharedFiles: props.onLoadSharedFiles,
+                          onSelectSharedFile: props.onSelectSharedFile,
+                          onSharedFileDraftChange: props.onSharedFileDraftChange,
+                          onSharedFileReset: props.onSharedFileReset,
+                          onSharedFileSave: props.onSharedFileSave,
+                        })}
+                      `
                     : nothing
                 }
                 ${

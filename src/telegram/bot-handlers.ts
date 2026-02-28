@@ -1410,12 +1410,13 @@ export const registerTelegramHandlers = ({
         msg.chat.type === "private"
           ? ("dm" as const)
           : (msg.chat.type as "group" | "supergroup" | "channel");
-      // Write to all agent workspaces so multi-agent setups share the registry.
-      updateChatRegistryForAllWorkspaces(cfg, {
-        chatId,
-        title: chatTitle,
-        type: chatType,
-      }).catch(() => void 0);
+      // Write scoped to the receiving bot's accountId so per-agent CHATS.md
+      // only contains chats that agent's Telegram bot actually handles.
+      updateChatRegistryForAllWorkspaces(
+        cfg,
+        { chatId, title: chatTitle, type: chatType },
+        { accountId: accountId ?? undefined },
+      ).catch(() => void 0);
     }
     // People registry: record sender profile so agents always know who they're
     // talking to. Fire-and-forget; runs unconditionally on every message.

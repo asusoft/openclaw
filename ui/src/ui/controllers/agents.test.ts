@@ -16,6 +16,8 @@ function createState(): { state: AgentsState; request: ReturnType<typeof vi.fn> 
     toolsCatalogLoading: false,
     toolsCatalogError: null,
     toolsCatalogResult: null,
+    agentCreateBusy: false,
+    agentCreateError: null,
   };
   return { state, request };
 }

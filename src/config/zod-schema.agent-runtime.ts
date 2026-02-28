@@ -675,6 +675,8 @@ export const AgentEntrySchema = z
     id: z.string(),
     default: z.boolean().optional(),
     name: z.string().optional(),
+    /** Agent role. 'admin' unlocks admin-only tools (manage_agents). Default: 'standard'. */
+    role: z.enum(["admin", "standard"]).optional(),
     workspace: z.string().optional(),
     agentDir: z.string().optional(),
     model: AgentModelSchema.optional(),

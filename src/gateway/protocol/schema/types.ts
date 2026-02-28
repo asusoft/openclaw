@@ -20,6 +20,12 @@ import type {
   AgentsFilesListResultSchema,
   AgentsFilesSetParamsSchema,
   AgentsFilesSetResultSchema,
+  AgentsSharedFilesGetParamsSchema,
+  AgentsSharedFilesGetResultSchema,
+  AgentsSharedFilesListParamsSchema,
+  AgentsSharedFilesListResultSchema,
+  AgentsSharedFilesSetParamsSchema,
+  AgentsSharedFilesSetResultSchema,
   AgentsListParamsSchema,
   AgentsListResultSchema,
   AgentsUpdateParamsSchema,
@@ -212,6 +218,12 @@ export type AgentsFilesGetParams = Static<typeof AgentsFilesGetParamsSchema>;
 export type AgentsFilesGetResult = Static<typeof AgentsFilesGetResultSchema>;
 export type AgentsFilesSetParams = Static<typeof AgentsFilesSetParamsSchema>;
 export type AgentsFilesSetResult = Static<typeof AgentsFilesSetResultSchema>;
+export type AgentsSharedFilesListParams = Static<typeof AgentsSharedFilesListParamsSchema>;
+export type AgentsSharedFilesListResult = Static<typeof AgentsSharedFilesListResultSchema>;
+export type AgentsSharedFilesGetParams = Static<typeof AgentsSharedFilesGetParamsSchema>;
+export type AgentsSharedFilesGetResult = Static<typeof AgentsSharedFilesGetResultSchema>;
+export type AgentsSharedFilesSetParams = Static<typeof AgentsSharedFilesSetParamsSchema>;
+export type AgentsSharedFilesSetResult = Static<typeof AgentsSharedFilesSetResultSchema>;
 export type AgentsListParams = Static<typeof AgentsListParamsSchema>;
 export type AgentsListResult = Static<typeof AgentsListResultSchema>;
 export type ModelChoice = Static<typeof ModelChoiceSchema>;
